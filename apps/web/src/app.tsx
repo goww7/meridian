@@ -10,6 +10,8 @@ import { FlowListPage } from './pages/flows';
 import { FlowDetailPage } from './pages/flows/detail';
 import { PoliciesPage } from './pages/policies';
 import { SettingsPage } from './pages/settings';
+import { AuditPage } from './pages/audit';
+import { AnalyticsPage } from './pages/analytics';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,6 +38,8 @@ export function App() {
               <Route path="flows" element={<FlowListPage />} />
               <Route path="flows/:flowId/*" element={<FlowDetailPage />} />
               <Route path="policies" element={<PoliciesPage />} />
+              <Route path="audit" element={<AuditPage />} />
+              <Route path="analytics" element={<AnalyticsPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
           </Routes>

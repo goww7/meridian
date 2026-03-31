@@ -87,6 +87,17 @@ ${ctx.previousArtifacts.length > 0 ? `## Context\n${ctx.previousArtifacts.map((a
 ${ctx.feedback ? `## Feedback\n${ctx.feedback}\n` : ''}
 
 Generate a runbook as JSON with sections: pre_deploy, deploy_steps, rollback, monitoring, incidents. Respond with valid JSON only.`,
+
+  release_notes: (ctx) => `You are generating Release Notes for a software delivery flow.
+
+## Flow
+Title: ${ctx.flow.title}
+
+${ctx.previousArtifacts.length > 0 ? `## Context\n${ctx.previousArtifacts.map((a) => `### ${a.type}: ${a.title}\n${a.content_text}`).join('\n\n')}` : ''}
+
+${ctx.feedback ? `## Feedback\n${ctx.feedback}\n` : ''}
+
+Generate release notes as JSON with sections: summary, features (array of changes), bug_fixes (array), breaking_changes (array), known_issues (array), migration_guide. Respond with valid JSON only.`,
 };
 
 export function loadPrompt(artifactType: string, context: PromptContext): string {

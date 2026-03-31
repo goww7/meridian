@@ -16,7 +16,7 @@ export type OrgRole = (typeof ORG_ROLES)[number];
 export const TEAM_ROLES = ['lead', 'member'] as const;
 export type TeamRole = (typeof TEAM_ROLES)[number];
 
-export const ARTIFACT_TYPES = ['assessment', 'prd', 'architecture', 'test_plan', 'runbook', 'custom'] as const;
+export const ARTIFACT_TYPES = ['assessment', 'prd', 'architecture', 'test_plan', 'runbook', 'release_notes', 'custom'] as const;
 export type ArtifactType = (typeof ARTIFACT_TYPES)[number];
 
 export const ARTIFACT_STATUSES = ['draft', 'review', 'approved', 'archived'] as const;

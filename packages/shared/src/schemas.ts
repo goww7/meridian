@@ -220,6 +220,18 @@ export const linkGithubRepoSchema = z.object({
   sync_prs: z.boolean().default(true),
 });
 
+// ─── GitHub Integration ───
+export const linkRepoSchema = z.object({
+  installation_id: z.string().min(1),
+  repo_full_name: z.string().min(1).regex(/^[^/]+\/[^/]+$/),
+});
+export type LinkRepoInput = z.infer<typeof linkRepoSchema>;
+
+export const syncTaskSchema = z.object({
+  repo_link_id: z.string().min(1),
+});
+export type SyncTaskInput = z.infer<typeof syncTaskSchema>;
+
 // ─── CI Webhook ───
 export const ciWebhookSchema = z.object({
   flow_id: z.string().min(1),

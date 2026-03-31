@@ -18,6 +18,14 @@ import { artifactRoutes } from './modules/artifacts/artifacts.routes.js';
 import { evidenceRoutes } from './modules/evidence/evidence.routes.js';
 import { policyRoutes } from './modules/policies/policies.routes.js';
 import { graphRoutes } from './modules/graph/graph.routes.js';
+import { githubRoutes } from './modules/github/github.routes.js';
+import { registerWebSocket } from './infra/ws.js';
+import { auditRoutes } from './modules/audit/audit.routes.js';
+import { notificationRoutes } from './modules/notifications/notifications.routes.js';
+import { notificationService } from './modules/notifications/notifications.service.js';
+import { slackRoutes } from './modules/slack/slack.routes.js';
+import { slackService } from './modules/slack/slack.service.js';
+import { searchRoutes } from './modules/search/search.routes.js';
 
 export async function buildApp() {
   const app = Fastify({
@@ -57,6 +65,9 @@ export async function buildApp() {
   // Auth plugin (decorates request with user context)
   await app.register(authPlugin);
 
+  // WebSocket support
+  await registerWebSocket(app);
+
   // Routes
   await app.register(authRoutes);
   await app.register(orgRoutes);
@@ -70,6 +81,15 @@ export async function buildApp() {
   await app.register(evidenceRoutes);
   await app.register(policyRoutes);
   await app.register(graphRoutes);
+  await app.register(githubRoutes);
+  await app.register(auditRoutes);
+  await app.register(notificationRoutes);
+  await app.register(slackRoutes);
+  await app.register(searchRoutes);
+
+  // Setup domain event listeners
+  notificationService.setupEventListeners();
+  slackService.setupEventListeners();
 
   return app;
 }
