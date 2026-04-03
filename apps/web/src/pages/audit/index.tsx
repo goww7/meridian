@@ -1,11 +1,15 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { Card } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { Button } from '../../components/ui/button';
 import { Spinner } from '../../components/ui/spinner';
 import { EmptyState } from '../../components/ui/empty-state';
+import { PageHeader } from '../../components/ui/page-header';
+import { cn, formatDateTime } from '../../lib/utils';
+import { ScrollText, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const ENTITY_TYPES = ['all', 'flow', 'artifact', 'requirement', 'task', 'evidence', 'policy'] as const;
 
@@ -25,63 +29,74 @@ export function AuditPage() {
   const events = data?.data || [];
   const pagination = data?.pagination;
 
+  const inputClass = 'px-3 py-1.5 text-xs bg-surface-2 border border-edge rounded-md text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-cyan/40 transition-colors';
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Audit Log</h1>
-        <select
-          value={entityType}
-          onChange={(e) => { setEntityType(e.target.value); setPage(1); }}
-          className="px-3 py-2 border border-slate-300 rounded-md text-sm"
-        >
-          {ENTITY_TYPES.map((t) => (
-            <option key={t} value={t}>{t === 'all' ? 'All Entities' : t.charAt(0).toUpperCase() + t.slice(1)}</option>
-          ))}
-        </select>
-      </div>
+      <PageHeader
+        title="Audit Log"
+        description="Complete event history across all entities"
+        actions={
+          <div className="flex items-center gap-2">
+            <select
+              value={entityType}
+              onChange={(e) => { setEntityType(e.target.value); setPage(1); }}
+              className={inputClass}
+            >
+              {ENTITY_TYPES.map((t) => (
+                <option key={t} value={t}>{t === 'all' ? 'All entities' : t.charAt(0).toUpperCase() + t.slice(1)}</option>
+              ))}
+            </select>
+          </div>
+        }
+      />
 
       <Card>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-xs">
             <thead>
-              <tr className="border-b border-slate-200 text-left">
-                <th className="px-4 py-3 font-medium text-slate-500">Time</th>
-                <th className="px-4 py-3 font-medium text-slate-500">Actor</th>
-                <th className="px-4 py-3 font-medium text-slate-500">Event</th>
-                <th className="px-4 py-3 font-medium text-slate-500">Entity</th>
-                <th className="px-4 py-3 font-medium text-slate-500">Details</th>
+              <tr className="border-b border-edge">
+                <th className="px-4 py-2.5 font-medium text-text-muted text-left uppercase tracking-wider text-[10px]">Time</th>
+                <th className="px-4 py-2.5 font-medium text-text-muted text-left uppercase tracking-wider text-[10px]">Actor</th>
+                <th className="px-4 py-2.5 font-medium text-text-muted text-left uppercase tracking-wider text-[10px]">Event</th>
+                <th className="px-4 py-2.5 font-medium text-text-muted text-left uppercase tracking-wider text-[10px]">Entity</th>
+                <th className="px-4 py-2.5 font-medium text-text-muted text-left uppercase tracking-wider text-[10px]">Details</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center">
-                    <Spinner className="mx-auto" />
+                  <td colSpan={5} className="px-4 py-12 text-center">
+                    <Spinner className="mx-auto h-4 w-4" />
                   </td>
                 </tr>
               ) : events.length === 0 ? (
                 <tr>
                   <td colSpan={5}>
-                    <EmptyState title="No audit events" description="Audit events will appear here as actions are performed." />
+                    <EmptyState icon={ScrollText} title="No audit events" description="Events will appear here as actions are performed." />
                   </td>
                 </tr>
               ) : (
                 events.map((evt: any, i: number) => (
-                  <tr key={evt.id || i} className="border-b border-slate-100 hover:bg-slate-50">
-                    <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
-                      {new Date(evt.created_at).toLocaleString()}
+                  <tr key={evt.id || i} className="border-b border-edge hover:bg-surface-2/50 transition-colors">
+                    <td className="px-4 py-2.5 text-text-muted whitespace-nowrap font-mono text-[11px]">
+                      {formatDateTime(evt.created_at)}
                     </td>
-                    <td className="px-4 py-3 font-medium">{evt.actor_name || evt.actor_id || 'System'}</td>
-                    <td className="px-4 py-3">
-                      <Badge className="bg-slate-100 text-slate-700">{evt.event}</Badge>
+                    <td className="px-4 py-2.5 text-text-secondary">{evt.actor_name || 'System'}</td>
+                    <td className="px-4 py-2.5">
+                      <Badge>{evt.event}</Badge>
                     </td>
-                    <td className="px-4 py-3">
-                      <span className="text-xs text-slate-500">{evt.entity_type}</span>
-                      {evt.entity_id && (
-                        <span className="ml-1 text-xs font-mono text-slate-400">{evt.entity_id.slice(0, 8)}</span>
-                      )}
+                    <td className="px-4 py-2.5">
+                      <span className="text-text-muted">{evt.entity_type}</span>
+                      {evt.entity_id && evt.entity_type === 'flow' ? (
+                        <Link to={`/flows/${evt.entity_id}`} className="ml-1.5 font-mono text-accent-cyan text-[10px] hover:underline">{evt.entity_id.slice(0, 8)}</Link>
+                      ) : evt.entity_id && evt.flow_id ? (
+                        <Link to={`/flows/${evt.flow_id}`} className="ml-1.5 font-mono text-accent-cyan text-[10px] hover:underline">{evt.entity_id.slice(0, 8)}</Link>
+                      ) : evt.entity_id ? (
+                        <span className="ml-1.5 font-mono text-text-muted text-[10px]">{evt.entity_id.slice(0, 8)}</span>
+                      ) : null}
                     </td>
-                    <td className="px-4 py-3 text-slate-500 text-xs max-w-xs truncate">
+                    <td className="px-4 py-2.5 text-text-muted max-w-xs truncate font-mono text-[10px]">
                       {evt.details ? JSON.stringify(evt.details) : '-'}
                     </td>
                   </tr>
@@ -92,26 +107,18 @@ export function AuditPage() {
         </div>
 
         {pagination && pagination.total_pages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200">
-            <p className="text-sm text-slate-500">
+          <div className="flex items-center justify-between px-4 py-2.5 border-t border-edge">
+            <p className="text-[10px] text-text-muted font-mono tabular-nums">
               Page {pagination.page} of {pagination.total_pages}
             </p>
-            <div className="flex gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => p - 1)}
-              >
-                Previous
+            <div className="flex gap-1">
+              <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+                <ChevronLeft className="w-3 h-3" />
+                Prev
               </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={page >= pagination.total_pages}
-                onClick={() => setPage((p) => p + 1)}
-              >
-                Load more
+              <Button variant="secondary" size="sm" disabled={page >= pagination.total_pages} onClick={() => setPage((p) => p + 1)}>
+                Next
+                <ChevronRight className="w-3 h-3" />
               </Button>
             </div>
           </div>
