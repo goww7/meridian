@@ -23,7 +23,7 @@ export const evidenceService = {
 
   async listByFlow(orgId: string, flowId: string) {
     const result = await db.query(
-      'SELECT * FROM evidence WHERE org_id = $1 AND flow_id = $2 ORDER BY collected_at DESC',
+      'SELECT e.*, r.title as requirement_title FROM evidence e LEFT JOIN requirements r ON r.id = e.requirement_id WHERE e.org_id = $1 AND e.flow_id = $2 ORDER BY e.collected_at DESC',
       [orgId, flowId],
     );
     return result.rows;

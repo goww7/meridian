@@ -18,7 +18,7 @@ export const taskService = {
 
   async listByFlow(orgId: string, flowId: string) {
     const result = await db.query(
-      `SELECT t.*, u.name as assignee_name FROM tasks t LEFT JOIN users u ON u.id = t.assignee_id
+      `SELECT t.*, u.name as assignee_name, r.title as requirement_title FROM tasks t LEFT JOIN users u ON u.id = t.assignee_id LEFT JOIN requirements r ON r.id = t.requirement_id
        WHERE t.org_id = $1 AND t.flow_id = $2 AND t.deleted_at IS NULL ORDER BY t.created_at`,
       [orgId, flowId],
     );

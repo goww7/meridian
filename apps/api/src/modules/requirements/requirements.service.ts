@@ -24,7 +24,7 @@ export const requirementService = {
 
   async listByFlow(orgId: string, flowId: string) {
     const result = await db.query(
-      'SELECT * FROM requirements WHERE org_id = $1 AND flow_id = $2 AND deleted_at IS NULL ORDER BY created_at',
+      'SELECT r.*, o.title as objective_title FROM requirements r LEFT JOIN objectives o ON o.id = r.objective_id WHERE r.org_id = $1 AND r.flow_id = $2 AND r.deleted_at IS NULL ORDER BY r.created_at',
       [orgId, flowId],
     );
     return result.rows;

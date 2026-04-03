@@ -7,9 +7,13 @@ export const config = {
   jwtExpiry: parseInt(process.env.JWT_EXPIRY || '900', 10),
   refreshTokenExpiry: parseInt(process.env.REFRESH_TOKEN_EXPIRY || '604800', 10),
   anthropicApiKey: process.env.ANTHROPIC_API_KEY || '',
+  llmProvider: (process.env.LLM_PROVIDER || 'anthropic') as 'anthropic' | 'openai' | 'google',
+  llmApiKey: process.env.LLM_API_KEY || process.env.ANTHROPIC_API_KEY || '',
+  llmModel: process.env.LLM_MODEL || '',
   githubAppId: process.env.GITHUB_APP_ID || '',
   githubPrivateKey: process.env.GITHUB_PRIVATE_KEY || '',
   githubWebhookSecret: process.env.GITHUB_WEBHOOK_SECRET || '',
+  jiraWebhookSecret: process.env.JIRA_WEBHOOK_SECRET || '',
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
   logLevel: process.env.LOG_LEVEL || 'info',
 } as const;

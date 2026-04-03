@@ -59,12 +59,13 @@ export const policyService = {
     }
 
     // Load flow data for context
-    const [flowResult, artifactsResult, reqsResult, tasksResult, evidenceResult] = await Promise.all([
+    const [flowResult, artifactsResult, reqsResult, tasksResult, evidenceResult, approvalsResult] = await Promise.all([
       db.query('SELECT * FROM flows WHERE id = $1 AND org_id = $2', [flowId, orgId]),
       db.query('SELECT type, status FROM artifacts WHERE flow_id = $1 AND org_id = $2 AND deleted_at IS NULL', [flowId, orgId]),
       db.query('SELECT status, priority FROM requirements WHERE flow_id = $1 AND org_id = $2 AND deleted_at IS NULL', [flowId, orgId]),
       db.query('SELECT status FROM tasks WHERE flow_id = $1 AND org_id = $2 AND deleted_at IS NULL', [flowId, orgId]),
       db.query('SELECT type, status, requirement_id FROM evidence WHERE flow_id = $1 AND org_id = $2', [flowId, orgId]),
+      db.query('SELECT status FROM approvals WHERE flow_id = $1 AND org_id = $2', [flowId, orgId]).catch(() => ({ rows: [] })),
     ]);
 
     if (flowResult.rows.length === 0) throw new NotFoundError('Flow', flowId);
@@ -75,7 +76,7 @@ export const policyService = {
       requirements: reqsResult.rows,
       tasks: tasksResult.rows,
       evidence: evidenceResult.rows,
-      approvals: [],
+      approvals: approvalsResult.rows,
       totalRequirements: reqsResult.rows.length,
     });
 
