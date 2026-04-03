@@ -12,7 +12,8 @@ import { Tabs } from '../../components/ui/tabs';
 import { cn, timeAgo, statusColors } from '../../lib/utils';
 import {
   Brain, Plus, X, TestTube, Power, Trash2, Link2, Unlink, Upload,
-  Download, FileText, Copy, ExternalLink, Plug,
+  Download, FileText, Copy, ExternalLink, Plug, Search, GitBranch,
+  Star, Lock, Globe, CheckCircle2, RefreshCw, Eye,
 } from 'lucide-react';
 
 // ─── Types ───
@@ -427,59 +428,257 @@ function FlowIntegrationDetail({ flow, connections, mode }: { flow: Flow; connec
 
 // ─── GitHub Panel ───
 
+interface GhConnection { id: string; username: string; avatar_url: string; display_name: string; token_scopes: string; status: string; created_at: string; }
+interface GhRepo { id: number; full_name: string; name: string; owner: string; owner_avatar: string; description: string | null; private: boolean; default_branch: string; language: string | null; stars: number; updated_at: string; html_url: string; linked_flow_id: string | null; }
+interface GhRepoLink { id: string; flow_id: string; repo_full_name: string; repo_owner: string; repo_name: string; flow_title?: string; created_at: string; }
+
+const LANG_COLORS: Record<string, string> = {
+  TypeScript: 'bg-blue-400', JavaScript: 'bg-yellow-400', Python: 'bg-green-400', Go: 'bg-cyan-400',
+  Rust: 'bg-orange-400', Java: 'bg-red-400', Ruby: 'bg-red-500', C: 'bg-gray-400', 'C++': 'bg-pink-400',
+  Swift: 'bg-orange-500', Kotlin: 'bg-purple-400', PHP: 'bg-indigo-400', Shell: 'bg-emerald-400',
+};
+
 function GitHubPanel() {
   const queryClient = useQueryClient();
-  const [showSetup, setShowSetup] = useState(false);
-  const [setupForm, setSetupForm] = useState({ installation_id: '', account_login: '', account_type: 'Organization', app_id: '' });
+  const [showConnect, setShowConnect] = useState(false);
+  const [token, setToken] = useState('');
+  const [repoSearch, setRepoSearch] = useState('');
+  const [linkingRepo, setLinkingRepo] = useState<string | null>(null);
+  const [selectedFlowId, setSelectedFlowId] = useState('');
+  const [view, setView] = useState<'repos' | 'links'>('repos');
 
-  const { data: installations = [], isLoading } = useQuery<any[]>({ queryKey: ['github', 'installations'], queryFn: () => api.get('/github/installations') });
+  const { data: connection, isLoading } = useQuery<GhConnection | null>({ queryKey: ['github', 'connection'], queryFn: () => api.get('/github/connection') });
+  const { data: repos = [], isLoading: loadingRepos, refetch: refetchRepos } = useQuery<GhRepo[]>({
+    queryKey: ['github', 'repos', repoSearch],
+    queryFn: () => api.get(`/github/repos${repoSearch ? `?search=${encodeURIComponent(repoSearch)}` : ''}`),
+    enabled: !!connection,
+  });
+  const { data: repoLinks = [], refetch: refetchLinks } = useQuery<GhRepoLink[]>({ queryKey: ['github', 'links'], queryFn: () => api.get('/github/links'), enabled: !!connection });
+  const { data: flowsData } = useQuery<{ data: Flow[] }>({ queryKey: ['flows', 'all'], queryFn: () => api.get('/flows?limit=100'), enabled: !!connection });
+  const flows = flowsData?.data || [];
 
-  const setup = useMutation({
-    mutationFn: () => api.post('/github/installations/setup', { installation_id: Number(setupForm.installation_id), account_login: setupForm.account_login, account_type: setupForm.account_type, app_id: Number(setupForm.app_id) }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['github'] }); toast.success('GitHub App installed'); setShowSetup(false); },
+  const connectMut = useMutation({
+    mutationFn: () => api.post('/github/connect', { access_token: token }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['github'] });
+      toast.success('GitHub connected!');
+      setShowConnect(false);
+      setToken('');
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const remove = useMutation({
-    mutationFn: (id: string) => api.del(`/github/installations/${id}`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['github'] }); toast.success('Removed'); },
+  const disconnectMut = useMutation({
+    mutationFn: () => api.del('/github/disconnect'),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['github'] }); toast.success('Disconnected'); },
   });
 
+  const linkMut = useMutation({
+    mutationFn: ({ flowId, repoFullName }: { flowId: string; repoFullName: string }) => api.post(`/flows/${flowId}/github/link`, { repo_full_name: repoFullName }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['github'] });
+      toast.success('Repository linked to flow');
+      setLinkingRepo(null);
+      setSelectedFlowId('');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const unlinkMut = useMutation({
+    mutationFn: ({ flowId, linkId }: { flowId: string; linkId: string }) => api.del(`/flows/${flowId}/github/link/${linkId}`),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['github'] }); toast.success('Unlinked'); },
+  });
+
+  if (isLoading) return <div className="py-12 flex justify-center"><Spinner /></div>;
+
+  // ─── Not connected ───
+  if (!connection) {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-sm font-medium text-text-primary">GitHub</h3>
+            <p className="text-xs text-text-muted mt-0.5">Connect with a Personal Access Token to browse and link repos</p>
+          </div>
+        </div>
+
+        {!showConnect ? (
+          <EmptyState
+            icon={GitBranch}
+            title="Connect GitHub"
+            description="Use a Personal Access Token to sync repositories, issues, PRs, and CI status with your flows."
+            action={{ label: 'Connect GitHub', onClick: () => setShowConnect(true) }}
+          />
+        ) : (
+          <Card className="p-5 max-w-lg animate-slide-up border-accent-cyan/20">
+            <h4 className="text-sm font-medium text-text-primary mb-1">Connect with Personal Access Token</h4>
+            <p className="text-xs text-text-muted mb-4">
+              Generate a token at{' '}
+              <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener noreferrer" className="text-accent-cyan hover:underline">
+                github.com/settings/tokens
+              </a>
+              {' '}with <span className="font-mono text-text-secondary">repo</span> scope.
+            </p>
+            <input
+              className={cn(inputClass, 'font-mono')}
+              type="password"
+              placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && token.length > 10) connectMut.mutate(); }}
+              autoFocus
+            />
+            <div className="flex gap-2 mt-3">
+              <Button size="sm" onClick={() => connectMut.mutate()} disabled={connectMut.isPending || token.length < 10}>
+                {connectMut.isPending ? <><Spinner className="w-3 h-3" /> Connecting...</> : 'Connect'}
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => { setShowConnect(false); setToken(''); }}>Cancel</Button>
+            </div>
+          </Card>
+        )}
+      </div>
+    );
+  }
+
+  // ─── Connected ───
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <div><h3 className="text-sm font-medium text-text-primary">GitHub App Installations</h3><p className="text-xs text-text-muted mt-0.5">Connect GitHub repos to link PRs, issues, and CI status</p></div>
-        <Button size="sm" onClick={() => setShowSetup(!showSetup)}>{showSetup ? <><X className="w-3.5 h-3.5" /> Cancel</> : <><Plus className="w-3.5 h-3.5" /> Add Installation</>}</Button>
+    <div className="space-y-5">
+      {/* Connection header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {connection.avatar_url ? (
+            <img src={connection.avatar_url} alt={connection.username} className="w-9 h-9 rounded-full ring-2 ring-accent-cyan/30" />
+          ) : (
+            <div className="w-9 h-9 rounded-full bg-surface-3 border border-edge flex items-center justify-center text-text-secondary font-mono text-xs">GH</div>
+          )}
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-text-primary">{connection.display_name}</span>
+              <Badge className="bg-green-500/15 text-green-400">connected</Badge>
+            </div>
+            <p className="text-[10px] text-text-muted">@{connection.username} &middot; {connection.token_scopes || 'no scopes detected'}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="ghost" onClick={() => { refetchRepos(); refetchLinks(); }}><RefreshCw className="w-3 h-3" /></Button>
+          <Button size="sm" variant="danger" onClick={() => disconnectMut.mutate()} disabled={disconnectMut.isPending}>Disconnect</Button>
+        </div>
       </div>
 
-      {showSetup && (
-        <Card className="p-4 mb-4 animate-slide-up">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div><label className="block text-xs font-medium text-text-secondary mb-1.5">Installation ID</label><input className={cn(inputClass, 'font-mono')} placeholder="12345678" value={setupForm.installation_id} onChange={(e) => setSetupForm({ ...setupForm, installation_id: e.target.value })} /></div>
-            <div><label className="block text-xs font-medium text-text-secondary mb-1.5">Account Login</label><input className={inputClass} placeholder="acme-corp" value={setupForm.account_login} onChange={(e) => setSetupForm({ ...setupForm, account_login: e.target.value })} /></div>
-            <div><label className="block text-xs font-medium text-text-secondary mb-1.5">Account Type</label><select className={inputClass} value={setupForm.account_type} onChange={(e) => setSetupForm({ ...setupForm, account_type: e.target.value })}><option>Organization</option><option>User</option></select></div>
-            <div><label className="block text-xs font-medium text-text-secondary mb-1.5">App ID</label><input className={cn(inputClass, 'font-mono')} placeholder="123456" value={setupForm.app_id} onChange={(e) => setSetupForm({ ...setupForm, app_id: e.target.value })} /></div>
+      {/* View toggle */}
+      <div className="flex items-center gap-1 p-0.5 bg-surface-2 rounded-lg w-fit">
+        <button onClick={() => setView('repos')} className={cn('px-3 py-1.5 text-xs font-medium rounded-md transition-all', view === 'repos' ? 'bg-surface-3 text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary')}>
+          Repositories ({repos.length})
+        </button>
+        <button onClick={() => setView('links')} className={cn('px-3 py-1.5 text-xs font-medium rounded-md transition-all', view === 'links' ? 'bg-surface-3 text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary')}>
+          Linked ({repoLinks.length})
+        </button>
+      </div>
+
+      {/* Repos view */}
+      {view === 'repos' && (
+        <div>
+          {/* Search */}
+          <div className="relative mb-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
+            <input
+              className={cn(inputClass, 'pl-9')}
+              placeholder="Search repositories..."
+              value={repoSearch}
+              onChange={(e) => setRepoSearch(e.target.value)}
+            />
           </div>
-          <Button size="sm" className="mt-3" onClick={() => setup.mutate()} disabled={setup.isPending || !setupForm.installation_id || !setupForm.account_login}>Setup</Button>
-        </Card>
+
+          {loadingRepos ? (
+            <div className="py-8 flex justify-center"><Spinner /></div>
+          ) : repos.length === 0 ? (
+            <div className="py-8 text-center text-xs text-text-muted">No repositories found</div>
+          ) : (
+            <div className="space-y-1 max-h-[520px] overflow-y-auto pr-1">
+              {repos.map((repo) => (
+                <Card key={repo.id} className="px-4 py-3 group hover:border-edge/80 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <a href={repo.html_url} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-accent-cyan hover:underline truncate">
+                          {repo.full_name}
+                        </a>
+                        {repo.private ? <Lock className="w-3 h-3 text-text-muted flex-shrink-0" /> : <Globe className="w-3 h-3 text-text-muted flex-shrink-0" />}
+                        {repo.linked_flow_id && <Badge className="bg-green-500/15 text-green-400 flex-shrink-0"><CheckCircle2 className="w-2.5 h-2.5 mr-0.5" />linked</Badge>}
+                      </div>
+                      <div className="flex items-center gap-3 mt-1">
+                        {repo.language && (
+                          <span className="flex items-center gap-1 text-[10px] text-text-muted">
+                            <span className={cn('w-2 h-2 rounded-full', LANG_COLORS[repo.language] || 'bg-gray-500')} />
+                            {repo.language}
+                          </span>
+                        )}
+                        {repo.stars > 0 && <span className="flex items-center gap-0.5 text-[10px] text-text-muted"><Star className="w-2.5 h-2.5" />{repo.stars}</span>}
+                        {repo.description && <span className="text-[10px] text-text-muted truncate">{repo.description}</span>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 ml-3">
+                      {linkingRepo === repo.full_name ? (
+                        <div className="flex items-center gap-2 animate-slide-up">
+                          <select className={cn(inputClass, 'w-48 text-xs py-1.5')} value={selectedFlowId} onChange={(e) => setSelectedFlowId(e.target.value)}>
+                            <option value="">Select flow...</option>
+                            {flows.map((f) => <option key={f.id} value={f.id}>{f.title}</option>)}
+                          </select>
+                          <Button size="sm" onClick={() => linkMut.mutate({ flowId: selectedFlowId, repoFullName: repo.full_name })} disabled={!selectedFlowId || linkMut.isPending}>
+                            {linkMut.isPending ? <Spinner className="w-3 h-3" /> : 'Link'}
+                          </Button>
+                          <button onClick={() => setLinkingRepo(null)} className="p-1 text-text-muted hover:text-text-secondary"><X className="w-3 h-3" /></button>
+                        </div>
+                      ) : (
+                        <>
+                          <a href={repo.html_url} target="_blank" rel="noopener noreferrer" className="p-1.5 rounded text-text-muted hover:text-text-secondary hover:bg-surface-3 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                          {!repo.linked_flow_id && (
+                            <Button size="sm" variant="ghost" onClick={() => { setLinkingRepo(repo.full_name); setSelectedFlowId(''); }} className="sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+                              <Link2 className="w-3 h-3" /> Link
+                            </Button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
-      {isLoading ? <div className="py-8 flex justify-center"><Spinner /></div> : (Array.isArray(installations) ? installations : []).length === 0 ? (
-        <EmptyState icon={Plug} title="No GitHub installations" description="Install the Meridian GitHub App to connect repos." action={{ label: 'Add', onClick: () => setShowSetup(true) }} />
-      ) : (
-        <div className="space-y-1">
-          {(Array.isArray(installations) ? installations : []).map((inst: any) => (
-            <Card key={inst.id} className="px-4 py-3 flex items-center justify-between group">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-md bg-surface-3 border border-edge flex items-center justify-center text-text-secondary font-mono text-xs">GH</div>
-                <div><p className="text-sm text-text-primary">{inst.account_login}</p><p className="text-[10px] text-text-muted">{inst.account_type} &middot; ID: {inst.installation_id}</p></div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge className={statusColors.active}>{inst.status || 'active'}</Badge>
-                <button onClick={() => remove.mutate(inst.id)} className="p-1 rounded text-text-muted hover:text-red-400 hover:bg-red-500/10 sm:opacity-0 sm:group-hover:opacity-100 transition-all"><Trash2 className="w-3 h-3" /></button>
-              </div>
-            </Card>
-          ))}
+      {/* Linked repos view */}
+      {view === 'links' && (
+        <div>
+          {repoLinks.length === 0 ? (
+            <EmptyState icon={Link2} title="No linked repositories" description="Link repos to flows from the Repositories tab." action={{ label: 'Browse Repos', onClick: () => setView('repos') }} />
+          ) : (
+            <div className="space-y-1">
+              {repoLinks.map((link) => (
+                <Card key={link.id} className="px-4 py-3 flex items-center justify-between group">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-md bg-surface-3 border border-edge flex items-center justify-center">
+                      <GitBranch className="w-3.5 h-3.5 text-text-secondary" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <a href={`https://github.com/${link.repo_full_name}`} target="_blank" rel="noopener noreferrer" className="text-sm font-medium text-accent-cyan hover:underline">{link.repo_full_name}</a>
+                        <span className="text-[10px] text-text-muted">&rarr;</span>
+                        <span className="text-xs text-text-secondary">{link.flow_title || link.flow_id}</span>
+                      </div>
+                      <p className="text-[10px] text-text-muted">Linked {timeAgo(link.created_at)}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => unlinkMut.mutate({ flowId: link.flow_id, linkId: link.id })} className="p-1.5 rounded text-text-muted hover:text-red-400 hover:bg-red-500/10 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+                    <Unlink className="w-3 h-3" />
+                  </button>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
