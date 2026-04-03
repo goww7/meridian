@@ -51,7 +51,7 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
     ports:
-      - "80:80"
+      - "5173:80"
     depends_on:
       - api
 
