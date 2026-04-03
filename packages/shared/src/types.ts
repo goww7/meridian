@@ -3,6 +3,8 @@ import type {
   ArtifactType, ArtifactStatus, RequirementType, RequirementPriority,
   RequirementStatus, TaskStatus, EvidenceType, EvidenceSource,
   EvidenceStatus, PolicySeverity, PolicyEvalResult, ApprovalStatus,
+  ApprovalWorkflowType, ComplianceFramework, ComplianceReportStatus,
+  WebhookEventType, SsoProvider,
 } from './constants.js';
 
 // ─── Base ───
@@ -318,6 +320,218 @@ export interface GraphEdge {
 export interface TraceGraph {
   nodes: GraphNode[];
   edges: GraphEdge[];
+}
+
+// ─── Jira ───
+export interface JiraConnection extends Timestamps {
+  id: string;
+  org_id: string;
+  site_url: string;
+  site_name: string;
+  webhook_secret: string | null;
+  status: string;
+}
+
+export interface JiraProjectLink {
+  id: string;
+  org_id: string;
+  flow_id: string;
+  connection_id: string;
+  project_key: string;
+  project_name: string;
+  sync_issues: boolean;
+  import_completed: boolean;
+  created_at: string;
+}
+
+export interface JiraIssueLink {
+  id: string;
+  entity_id: string;
+  entity_type: 'task' | 'requirement' | 'initiative';
+  project_link_id: string;
+  issue_key: string;
+  issue_type: string;
+  issue_url: string;
+  sync_direction: string;
+  last_synced_at: string | null;
+  created_at: string;
+}
+
+// ─── Confluence ───
+export interface ConfluenceSpaceLink {
+  id: string;
+  org_id: string;
+  flow_id: string;
+  connection_id: string;
+  space_key: string;
+  space_name: string;
+  parent_page_id: string | null;
+  sync_direction: 'publish' | 'pull';
+  created_at: string;
+}
+
+export interface ConfluencePageLink {
+  id: string;
+  org_id: string;
+  artifact_id: string;
+  space_link_id: string;
+  page_id: string;
+  page_title: string;
+  page_url: string;
+  sync_direction: 'publish' | 'pull';
+  last_synced_at: string | null;
+  last_synced_version: number | null;
+  created_at: string;
+}
+
+// ─── LLM ───
+export interface LlmConnection {
+  id: string;
+  org_id: string;
+  provider: 'anthropic' | 'openai' | 'google';
+  display_name: string;
+  model: string;
+  is_active: boolean;
+  status: string;
+  last_tested_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// ─── Approval ───
+export interface Approval extends Timestamps {
+  id: string;
+  org_id: string;
+  entity_type: 'artifact' | 'flow';
+  entity_id: string;
+  flow_id: string;
+  workflow_type: ApprovalWorkflowType;
+  status: ApprovalStatus;
+  required_approvers: number;
+  current_approvals: number;
+  requested_by: string;
+  resolved_at: string | null;
+}
+
+export interface ApprovalResponse {
+  id: string;
+  approval_id: string;
+  user_id: string;
+  decision: 'approved' | 'rejected';
+  comment: string | null;
+  created_at: string;
+  user?: User;
+}
+
+// ─── Compliance ───
+export interface ComplianceReport extends Timestamps {
+  id: string;
+  org_id: string;
+  framework: ComplianceFramework;
+  title: string;
+  status: ComplianceReportStatus;
+  period_start: string;
+  period_end: string;
+  summary: ComplianceReportSummary | null;
+  generated_by: string | null;
+}
+
+export interface ComplianceReportSummary {
+  total_controls: number;
+  controls_met: number;
+  controls_partial: number;
+  controls_unmet: number;
+  evidence_count: number;
+  policy_pass_rate: number;
+  findings: ComplianceFinding[];
+}
+
+export interface ComplianceFinding {
+  control_id: string;
+  control_name: string;
+  status: 'met' | 'partial' | 'unmet';
+  evidence_refs: string[];
+  gaps: string[];
+}
+
+// ─── API Key ───
+export interface ApiKey {
+  id: string;
+  org_id: string;
+  name: string;
+  key_prefix: string;
+  scopes: string[];
+  expires_at: string | null;
+  last_used_at: string | null;
+  created_by: string;
+  created_at: string;
+  revoked_at: string | null;
+}
+
+// ─── Outbound Webhook ───
+export interface OutboundWebhook extends Timestamps {
+  id: string;
+  org_id: string;
+  url: string;
+  description: string | null;
+  events: WebhookEventType[];
+  secret: string | null;
+  enabled: boolean;
+  last_triggered_at: string | null;
+  failure_count: number;
+}
+
+export interface WebhookDelivery {
+  id: string;
+  webhook_id: string;
+  event_type: string;
+  payload: Record<string, unknown>;
+  status_code: number | null;
+  response_body: string | null;
+  success: boolean;
+  attempted_at: string;
+}
+
+// ─── GitLab ───
+export interface GitlabConnection extends Timestamps {
+  id: string;
+  org_id: string;
+  instance_url: string;
+  display_name: string;
+  status: string;
+}
+
+export interface GitlabProjectLink {
+  id: string;
+  org_id: string;
+  flow_id: string;
+  connection_id: string;
+  project_id: number;
+  project_path: string;
+  project_name: string;
+  sync_mrs: boolean;
+  sync_pipelines: boolean;
+  created_at: string;
+}
+
+// ─── SSO ───
+export interface SsoConfig extends Timestamps {
+  id: string;
+  org_id: string;
+  provider: SsoProvider;
+  display_name: string;
+  enabled: boolean;
+  config: Record<string, unknown>;
+  metadata_url: string | null;
+}
+
+// ─── Advanced Analytics ───
+export interface AdvancedAnalytics {
+  cycle_time: { avg_days: number; by_stage: Record<string, number> };
+  lead_time: { avg_days: number; trend: number[] };
+  approval_turnaround: { avg_hours: number; by_type: Record<string, number> };
+  compliance_score: { current: number; trend: number[] };
+  flow_velocity: { completed_per_week: number[]; trend: 'up' | 'down' | 'stable' };
 }
 
 // ─── Job ───
