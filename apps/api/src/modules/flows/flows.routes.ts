@@ -41,4 +41,23 @@ export async function flowRoutes(app: FastifyInstance) {
     const { flowId } = request.params as { flowId: string };
     return flowService.getReadiness(request.user.org_id, flowId);
   });
+
+  app.post('/api/v1/flows/:flowId/kickstart', { preHandler: [app.requireAuth, app.requireRole('member')] }, async (request, reply) => {
+    const { flowId } = request.params as { flowId: string };
+    const result = await flowService.kickstart(request.user.org_id, flowId, request.user.id);
+    return reply.status(202).send(result);
+  });
+
+  app.post('/api/v1/flows/:flowId/kickstart-from-repo', { preHandler: [app.requireAuth, app.requireRole('member')] }, async (request, reply) => {
+    const { flowId } = request.params as { flowId: string };
+    const { repo_url } = request.body as { repo_url: string };
+    if (!repo_url) return reply.status(400).send({ detail: 'repo_url is required' });
+    const result = await flowService.kickstartFromRepo(request.user.org_id, flowId, request.user.id, repo_url);
+    return reply.status(202).send(result);
+  });
+
+  app.get('/api/v1/flows/:flowId/traceability', { preHandler: [app.requireAuth] }, async (request) => {
+    const { flowId } = request.params as { flowId: string };
+    return flowService.getTraceability(request.user.org_id, flowId);
+  });
 }

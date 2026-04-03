@@ -5,6 +5,7 @@ import { generateId } from '../../infra/id.js';
 import { NotFoundError, ConflictError, GateFailedError, ValidationError } from '../../infra/errors.js';
 import { eventBus } from '../../infra/events.js';
 import { policyService } from '../policies/policies.service.js';
+import { kickstartQueue, repoKickstartQueue } from '../../ai/queue.js';
 
 export const flowService = {
   async create(orgId: string, userId: string, input: CreateFlowInput) {
@@ -151,15 +152,24 @@ export const flowService = {
     const gateResult = await policyService.evaluateGate(orgId, flowId, fromStage);
 
     if (!gateResult.passed) {
+      // Build explicit failure summary
+      const failureSummaries = gateResult.blocking_failures.map(
+        (f: { policy_name: string; details: { message: string } }) =>
+          `"${f.policy_name}": ${f.details?.message || 'requirement not met'}`,
+      );
+      const message = `Stage transition blocked by ${gateResult.blocking_failures.length} failed policy${gateResult.blocking_failures.length > 1 ? 'ies' : 'y'}: ${failureSummaries.join('; ')}`;
+
       // Record failed evaluation
       await db.query(
         'INSERT INTO flow_stage_transitions (id, flow_id, org_id, from_stage, to_stage, triggered_by, reason, metadata) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
-        [generateId('fst'), flowId, orgId, fromStage, toStage, userId, 'Gate failed', JSON.stringify({ gate_result: gateResult })],
+        [generateId('fst'), flowId, orgId, fromStage, toStage, userId, message, JSON.stringify({ gate_result: gateResult })],
       );
-      throw new GateFailedError(
-        `${gateResult.blocking_failures.length} blocking policy(ies) failed`,
-        gateResult,
-      );
+      eventBus.emit('policy.evaluated', {
+        org_id: orgId, entity_type: 'flow', entity_id: flowId, event_type: 'policy.evaluated',
+        actor_id: userId, data: { flow_id: flowId, gate_result: gateResult },
+      });
+
+      throw new GateFailedError(message, gateResult);
     }
 
     // Advance the stage
@@ -184,6 +194,69 @@ export const flowService = {
 
   async softDelete(orgId: string, flowId: string) {
     await db.query('UPDATE flows SET deleted_at = now() WHERE id = $1 AND org_id = $2', [flowId, orgId]);
+  },
+
+  async kickstart(orgId: string, flowId: string, userId: string) {
+    // Verify flow exists
+    const flowResult = await db.query('SELECT * FROM flows WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL', [flowId, orgId]);
+    if (flowResult.rows.length === 0) throw new NotFoundError('Flow', flowId);
+
+    // Check if flow already has initiatives (prevent double-kickstart)
+    const existing = await db.query('SELECT COUNT(*)::int as count FROM initiatives WHERE flow_id = $1 AND org_id = $2 AND deleted_at IS NULL', [flowId, orgId]);
+    if (existing.rows[0].count > 0) {
+      throw new ConflictError('Flow already has initiatives. Delete existing data before re-kickstarting.');
+    }
+
+    const jobId = generateId('job');
+    await kickstartQueue.add('kickstart', { jobId, orgId, flowId, userId });
+    return { job_id: jobId, status: 'queued' };
+  },
+
+  async kickstartFromRepo(orgId: string, flowId: string, userId: string, repoUrl: string) {
+    const flowResult = await db.query('SELECT * FROM flows WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL', [flowId, orgId]);
+    if (flowResult.rows.length === 0) throw new NotFoundError('Flow', flowId);
+
+    const existing = await db.query('SELECT COUNT(*)::int as count FROM initiatives WHERE flow_id = $1 AND org_id = $2 AND deleted_at IS NULL', [flowId, orgId]);
+    if (existing.rows[0].count > 0) {
+      throw new ConflictError('Flow already has initiatives. Delete existing data before re-kickstarting.');
+    }
+
+    const jobId = generateId('job');
+    await repoKickstartQueue.add('repo-kickstart', { jobId, orgId, flowId, userId, repoUrl });
+    return { job_id: jobId, status: 'queued' };
+  },
+
+  async getTraceability(orgId: string, flowId: string) {
+    const [initResult, objResult, reqResult, taskResult, evidenceResult] = await Promise.all([
+      db.query('SELECT id, title, status FROM initiatives WHERE flow_id = $1 AND org_id = $2 AND deleted_at IS NULL ORDER BY created_at', [flowId, orgId]),
+      db.query('SELECT o.id, o.title, o.status, o.initiative_id, o.success_criteria FROM objectives o JOIN initiatives i ON i.id = o.initiative_id AND i.flow_id = $1 WHERE o.org_id = $2 AND o.deleted_at IS NULL ORDER BY o.created_at', [flowId, orgId]),
+      db.query('SELECT id, title, description, type, priority, status, objective_id FROM requirements WHERE flow_id = $1 AND org_id = $2 AND deleted_at IS NULL ORDER BY created_at', [flowId, orgId]),
+      db.query('SELECT id, title, status, requirement_id, assignee_id FROM tasks WHERE flow_id = $1 AND org_id = $2 AND deleted_at IS NULL ORDER BY created_at', [flowId, orgId]),
+      db.query('SELECT id, type, status, requirement_id, source FROM evidence WHERE flow_id = $1 AND org_id = $2 ORDER BY collected_at DESC', [flowId, orgId]),
+    ]);
+
+    // Build the tree
+    const initiatives = initResult.rows.map((init: any) => {
+      const objectives = objResult.rows
+        .filter((o: any) => o.initiative_id === init.id)
+        .map((obj: any) => {
+          const requirements = reqResult.rows
+            .filter((r: any) => r.objective_id === obj.id)
+            .map((req: any) => ({
+              ...req,
+              tasks: taskResult.rows.filter((t: any) => t.requirement_id === req.id),
+              evidence: evidenceResult.rows.filter((e: any) => e.requirement_id === req.id),
+            }));
+          return { ...obj, requirements };
+        });
+      return { ...init, objectives };
+    });
+
+    // Unlinked tasks/evidence (not linked to any requirement)
+    const unlinked_tasks = taskResult.rows.filter((t: any) => !t.requirement_id);
+    const unlinked_evidence = evidenceResult.rows.filter((e: any) => !e.requirement_id);
+
+    return { initiatives, unlinked_tasks, unlinked_evidence };
   },
 
   async getReadiness(orgId: string, flowId: string) {

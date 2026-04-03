@@ -4,6 +4,84 @@
 
 @layer base {
   body {
-    @apply bg-slate-50 text-slate-900;
+    background-color: #0c0c0e;
+    color: #f4f4f5;
   }
+
+  /* Custom scrollbar - Bloomberg terminal feel */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #3f3f46;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #52525b;
+  }
+
+  /* Selection */
+  ::selection {
+    background: rgba(34, 211, 238, 0.2);
+    color: #fafafa;
+  }
+}
+
+@layer components {
+  .glass {
+    background: rgba(17, 17, 19, 0.8);
+    backdrop-filter: blur(24px);
+    border: 1px solid #2e2e33;
+  }
+}
+
+@layer utilities {
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ReactFlow overrides — Terminal Luxe */
+.react-flow {
+  --xy-background-color: transparent;
+  --xy-edge-stroke: rgba(54, 54, 64, 0.5);
+  --xy-edge-stroke-selected: #22d3ee;
+  --xy-node-border-radius: 8px;
+  --xy-minimap-background: #141416;
+  --xy-controls-button-background-color: #1c1c20;
+  --xy-controls-button-background-color-hover: #252529;
+  --xy-controls-button-color: #a1a1aa;
+  --xy-controls-button-border-color: #363640;
+}
+
+.react-flow__minimap {
+  border: 1px solid #363640 !important;
+  border-radius: 8px !important;
+  background: #141416 !important;
+}
+
+.react-flow__controls {
+  border: 1px solid #363640 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3) !important;
+}
+
+.react-flow__controls button {
+  border-bottom-color: #363640 !important;
+}
+
+.react-flow__controls button svg {
+  fill: #a1a1aa !important;
+}
+
+.react-flow__controls button:hover svg {
+  fill: #f4f4f5 !important;
 }

@@ -12,4 +12,8 @@ export async function searchRoutes(app: FastifyInstance) {
   app.get('/api/v1/analytics/overview', { preHandler: [app.requireAuth] }, async (request) => {
     return analyticsService.overview(request.user.org_id);
   });
+
+  app.get('/api/v1/analytics/advanced', { preHandler: [app.requireAuth] }, async (request) => {
+    return analyticsService.advanced(request.user.org_id);
+  });
 }

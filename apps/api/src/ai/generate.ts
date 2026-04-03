@@ -1,9 +1,8 @@
-import Anthropic from '@anthropic-ai/sdk';
 import { db } from '../infra/db/client.js';
 import { generateId } from '../infra/id.js';
-import { config } from '../infra/config.js';
 import { eventBus } from '../infra/events.js';
 import { loadPrompt } from './prompts.js';
+import { getLlmProviderForOrg } from './providers/index.js';
 
 interface GenerateInput {
   jobId: string;
@@ -40,23 +39,20 @@ export async function generateArtifact(input: GenerateInput) {
     feedback,
   });
 
-  // Call Claude
-  const client = new Anthropic({ apiKey: config.anthropicApiKey });
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 8192,
-    messages: [{ role: 'user', content: prompt }],
-  });
-
-  const text = response.content[0].type === 'text' ? response.content[0].text : '';
+  // Call LLM via provider abstraction (org DB connection → env var fallback)
+  const { provider, model } = await getLlmProviderForOrg(orgId);
+  const response = await provider.generate(
+    [{ role: 'user', content: prompt }],
+    { model, maxTokens: 8192 },
+  );
 
   // Parse JSON from response
   let content: { sections: unknown[] };
   try {
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    content = jsonMatch ? JSON.parse(jsonMatch[0]) : { sections: [{ id: 'content', title: artifactType, content: text }] };
+    const jsonMatch = response.text.match(/\{[\s\S]*\}/);
+    content = jsonMatch ? JSON.parse(jsonMatch[0]) : { sections: [{ id: 'content', title: artifactType, content: response.text }] };
   } catch {
-    content = { sections: [{ id: 'content', title: artifactType, content: text }] };
+    content = { sections: [{ id: 'content', title: artifactType, content: response.text }] };
   }
 
   // Get next version number
@@ -73,11 +69,7 @@ export async function generateArtifact(input: GenerateInput) {
      VALUES ($1, $2, $3, $4, $5, $6, 'ai', $7)`,
     [
       versionId, artifactId, orgId, nextVersion,
-      JSON.stringify(content), text, JSON.stringify({
-        input_tokens: response.usage.input_tokens,
-        output_tokens: response.usage.output_tokens,
-        model: 'claude-sonnet-4-6',
-      }),
+      JSON.stringify(content), response.text, JSON.stringify(response.usage),
     ],
   );
 

@@ -95,6 +95,48 @@ function applyOperator(op: string, actual: unknown, expected: unknown): boolean 
   }
 }
 
+const FIELD_LABELS: Record<string, string> = {
+  'evidence.coverage': 'evidence coverage',
+  'evidence.total': 'total evidence items',
+  'evidence.types_present': 'evidence types present',
+  'evidence.types_passing': 'evidence types passing',
+  'tasks.completion_ratio': 'task completion rate',
+  'tasks.total': 'total tasks',
+  'requirements.implemented_ratio': 'requirements implemented rate',
+  'requirements.verified_ratio': 'requirements verified rate',
+  'requirements.total': 'total requirements',
+  'artifacts.count': 'total artifacts',
+  'approvals.approved': 'approved approvals',
+  'approvals.pending': 'pending approvals',
+  'approvals.rejected': 'rejected approvals',
+  'flow.priority': 'flow priority',
+  'flow.sensitivity': 'flow sensitivity',
+  'flow.status': 'flow status',
+};
+
+const OP_LABELS: Record<string, string> = {
+  '$eq': 'equal to',
+  '$ne': 'not equal to',
+  '$gt': 'greater than',
+  '$gte': 'at least',
+  '$lt': 'less than',
+  '$lte': 'at most',
+  '$in': 'one of',
+  '$nin': 'not one of',
+  '$contains': 'containing',
+  '$exists': 'present',
+};
+
+function formatValue(value: unknown, field?: string): string {
+  if (typeof value === 'number' && field && (field.includes('ratio') || field.includes('coverage'))) {
+    return `${Math.round(value * 100)}%`;
+  }
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'string') return `"${value}"`;
+  if (Array.isArray(value)) return value.map((v) => formatValue(v)).join(', ');
+  return JSON.stringify(value);
+}
+
 function buildFailureDetail(
   require: Record<string, unknown>,
   context: PolicyContext,
@@ -103,12 +145,14 @@ function buildFailureDetail(
     if (key.startsWith('$')) continue;
 
     const actual = getNestedValue(context, key);
+    const label = FIELD_LABELS[key] || key.replace(/\./g, ' ');
 
     if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
       for (const [op, expected] of Object.entries(value as Record<string, unknown>)) {
         if (!applyOperator(op, actual, expected)) {
+          const opLabel = OP_LABELS[op] || op;
           return {
-            message: `Field '${key}' with value ${JSON.stringify(actual)} does not satisfy ${op} ${JSON.stringify(expected)}`,
+            message: `${label} is ${formatValue(actual, key)}, must be ${opLabel} ${formatValue(expected, key)}`,
             field: key,
             actual,
             expected,
@@ -118,7 +162,7 @@ function buildFailureDetail(
     } else {
       if (actual !== value) {
         return {
-          message: `Field '${key}' expected ${JSON.stringify(value)} but got ${JSON.stringify(actual)}`,
+          message: `${label} is ${formatValue(actual, key)}, expected ${formatValue(value, key)}`,
           field: key,
           actual,
           expected: value,

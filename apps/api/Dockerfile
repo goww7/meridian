@@ -15,7 +15,7 @@ COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
 COPY --from=deps /app/packages/policy-dsl/node_modules ./packages/policy-dsl/node_modules
 COPY . .
-RUN pnpm build
+RUN pnpm build --filter=@meridian/shared --filter=@meridian/policy-dsl --filter=@meridian/api
 
 FROM base AS production
 ENV NODE_ENV=production
@@ -30,6 +30,8 @@ COPY --from=build /app/packages/policy-dsl/dist ./packages/policy-dsl/dist
 COPY --from=build /app/packages/policy-dsl/package.json ./packages/policy-dsl/
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/api/node_modules ./apps/api/node_modules
+COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
+COPY --from=deps /app/packages/policy-dsl/node_modules ./packages/policy-dsl/node_modules
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
 WORKDIR /app/apps/api

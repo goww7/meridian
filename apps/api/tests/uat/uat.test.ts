@@ -43,16 +43,17 @@ describe('UAT: Authentication', () => {
   });
 
   it('should register a new user', async () => {
+    const ts = Date.now();
     const { status, data } = await post('/auth/register', {
-      email: `uat-${Date.now()}@test.dev`,
+      email: `uat-${ts}@test.dev`,
       password: 'testpassword123',
       name: 'UAT Test User',
-      org_name: 'UAT Test Org',
+      org_name: `UAT Test Org ${ts}`,
     }, '');
     expect(status).toBe(201);
     expect(data.access_token).toBeTruthy();
     expect(data.user.name).toBe('UAT Test User');
-    expect(data.org.name).toBe('UAT Test Org');
+    expect(data.org.name).toBe(`UAT Test Org ${ts}`);
   });
 });
 
@@ -80,9 +81,11 @@ describe('UAT: Organization & Teams', () => {
   it('should list teams', async () => {
     const { status, data } = await get('/teams', alice.token);
     expect(status).toBe(200);
-    expect(data.length).toBe(3);
-    const names = data.map((t: any) => t.name).sort();
-    expect(names).toEqual(['Payments Team', 'Platform Team', 'Security Team']);
+    expect(data.length).toBeGreaterThanOrEqual(3);
+    const names = data.map((t: any) => t.name);
+    expect(names).toContain('Payments Team');
+    expect(names).toContain('Platform Team');
+    expect(names).toContain('Security Team');
   });
 
   it('viewer can list teams', async () => {
@@ -101,9 +104,10 @@ describe('UAT: Organization & Teams', () => {
   });
 
   it('admin can create teams', async () => {
-    const { status, data } = await post('/teams', { name: 'QA Team', slug: 'qa' }, bob.token);
+    const slug = `qa-${Date.now()}`;
+    const { status, data } = await post('/teams', { name: `QA Team ${slug}`, slug }, bob.token);
     expect(status).toBe(201);
-    expect(data.name).toBe('QA Team');
+    expect(data.slug).toBe(slug);
   });
 });
 
@@ -550,8 +554,9 @@ describe('UAT: Policies & Gate Evaluation', () => {
   });
 
   it('admin can create policies', async () => {
+    const name = `uat-test-policy-${Date.now()}`;
     const { status, data } = await post('/policies', {
-      name: 'uat-test-policy',
+      name,
       description: 'UAT test policy',
       stage: 'release',
       severity: 'warning',
@@ -561,7 +566,7 @@ describe('UAT: Policies & Gate Evaluation', () => {
       },
     }, bob.token);
     expect(status).toBe(201);
-    expect(data.name).toBe('uat-test-policy');
+    expect(data.name).toBe(name);
   });
 
   it('member cannot create policies', async () => {
@@ -733,13 +738,11 @@ describe('UAT: Error Handling', () => {
 // ════════════════════════════════════════════
 describe('UAT: Seeded Data Integrity', () => {
   it('should have flows in every stage', async () => {
-    const { data } = await get('/flows', alice.token);
-    const stages = new Set(data.data.map((f: any) => f.current_stage));
-    expect(stages.has('assess')).toBe(true);
-    expect(stages.has('plan')).toBe(true);
-    expect(stages.has('build')).toBe(true);
-    expect(stages.has('release')).toBe(true);
-    expect(stages.has('done')).toBe(true);
+    // Query each stage individually to avoid pagination issues from accumulated test data
+    for (const stage of ['assess', 'plan', 'build', 'release', 'done']) {
+      const { data } = await get(`/flows?stage=${stage}&limit=1`, alice.token);
+      expect(data.data.length, `expected at least one flow in stage "${stage}"`).toBeGreaterThanOrEqual(1);
+    }
   });
 
   it('should have paused flow', async () => {

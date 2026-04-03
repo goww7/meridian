@@ -52,6 +52,26 @@ export type PolicyEvalResult = (typeof POLICY_EVAL_RESULTS)[number];
 export const APPROVAL_STATUSES = ['pending', 'approved', 'rejected'] as const;
 export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
 
+export const APPROVAL_WORKFLOW_TYPES = ['sequential', 'parallel', 'any'] as const;
+export type ApprovalWorkflowType = (typeof APPROVAL_WORKFLOW_TYPES)[number];
+
+export const COMPLIANCE_FRAMEWORKS = ['soc2', 'iso27001', 'hipaa', 'pci_dss'] as const;
+export type ComplianceFramework = (typeof COMPLIANCE_FRAMEWORKS)[number];
+
+export const COMPLIANCE_REPORT_STATUSES = ['draft', 'generating', 'complete', 'expired'] as const;
+export type ComplianceReportStatus = (typeof COMPLIANCE_REPORT_STATUSES)[number];
+
+export const WEBHOOK_EVENT_TYPES = [
+  'flow.created', 'flow.updated', 'flow.stage_changed',
+  'artifact.generated', 'artifact.approved',
+  'evidence.collected', 'task.updated',
+  'policy.evaluated', 'approval.requested', 'approval.granted', 'approval.rejected',
+] as const;
+export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number];
+
+export const SSO_PROVIDERS = ['saml', 'oidc'] as const;
+export type SsoProvider = (typeof SSO_PROVIDERS)[number];
+
 export const STAGE_ORDER: Record<FlowStage, number> = {
   assess: 0,
   plan: 1,

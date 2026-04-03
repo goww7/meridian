@@ -26,6 +26,18 @@ import { notificationService } from './modules/notifications/notifications.servi
 import { slackRoutes } from './modules/slack/slack.routes.js';
 import { slackService } from './modules/slack/slack.service.js';
 import { searchRoutes } from './modules/search/search.routes.js';
+import { jiraRoutes } from './modules/jira/jira.routes.js';
+import { jiraService } from './modules/jira/jira.service.js';
+import { confluenceRoutes } from './modules/confluence/confluence.routes.js';
+import { confluenceService } from './modules/confluence/confluence.service.js';
+import { llmRoutes } from './modules/llm/llm.routes.js';
+import { approvalRoutes } from './modules/approvals/approvals.routes.js';
+import { complianceRoutes } from './modules/compliance/compliance.routes.js';
+import { apiKeyRoutes } from './modules/api-keys/api-keys.routes.js';
+import { webhookRoutes } from './modules/webhooks/webhooks.routes.js';
+import { webhookService } from './modules/webhooks/webhooks.service.js';
+import { gitlabRoutes } from './modules/gitlab/gitlab.routes.js';
+import { ssoRoutes } from './modules/sso/sso.routes.js';
 
 export async function buildApp() {
   const app = Fastify({
@@ -86,10 +98,22 @@ export async function buildApp() {
   await app.register(notificationRoutes);
   await app.register(slackRoutes);
   await app.register(searchRoutes);
+  await app.register(jiraRoutes);
+  await app.register(confluenceRoutes);
+  await app.register(llmRoutes);
+  await app.register(approvalRoutes);
+  await app.register(complianceRoutes);
+  await app.register(apiKeyRoutes);
+  await app.register(webhookRoutes);
+  await app.register(gitlabRoutes);
+  await app.register(ssoRoutes);
 
   // Setup domain event listeners
   notificationService.setupEventListeners();
   slackService.setupEventListeners();
+  jiraService.setupEventListeners();
+  confluenceService.setupEventListeners();
+  webhookService.setupEventListeners();
 
   return app;
 }
