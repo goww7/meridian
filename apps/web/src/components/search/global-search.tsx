@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { Spinner } from '../ui/spinner';
+import { Search, ArrowRight } from 'lucide-react';
 
 const TYPE_LINKS: Record<string, (id: string) => string> = {
   flow: (id) => `/flows/${id}`,
@@ -10,6 +11,14 @@ const TYPE_LINKS: Record<string, (id: string) => string> = {
   requirement: (id) => `/flows/${id}`,
   task: (id) => `/flows/${id}`,
   evidence: (id) => `/flows/${id}`,
+};
+
+const TYPE_LABELS: Record<string, string> = {
+  flow: 'Flows',
+  artifact: 'Artifacts',
+  requirement: 'Requirements',
+  task: 'Tasks',
+  evidence: 'Evidence',
 };
 
 export function GlobalSearch() {
@@ -27,7 +36,6 @@ export function GlobalSearch() {
 
   const results = data?.data || [];
 
-  // Cmd+K shortcut
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -44,7 +52,6 @@ export function GlobalSearch() {
     return () => window.removeEventListener('keydown', handleKey);
   }, []);
 
-  // Close on click outside
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
@@ -64,7 +71,6 @@ export function GlobalSearch() {
     setQuery('');
   }
 
-  // Group by type
   const grouped = results.reduce((acc: Record<string, any[]>, r: any) => {
     const type = r.entity_type || 'other';
     if (!acc[type]) acc[type] = [];
@@ -73,47 +79,55 @@ export function GlobalSearch() {
   }, {});
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="relative flex-1 max-w-xs sm:max-w-sm md:max-w-md">
       <button
         onClick={() => { setOpen(true); setTimeout(() => inputRef.current?.focus(), 0); }}
-        className="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-400 bg-slate-800 rounded-md border border-slate-700 hover:border-slate-600 transition-colors"
+        className="flex items-center gap-2 px-2.5 py-1 text-xs text-text-muted bg-surface-2 rounded-md border border-edge hover:border-edge-strong transition-colors w-full"
       >
-        <span>Search...</span>
-        <kbd className="text-xs bg-slate-700 px-1.5 py-0.5 rounded">⌘K</kbd>
+        <Search className="w-3 h-3 shrink-0" />
+        <span className="flex-1 text-left truncate">Search...</span>
+        <kbd className="hidden sm:inline text-[10px] font-mono bg-surface-3 px-1.5 py-0.5 rounded border border-edge text-text-muted">⌘K</kbd>
       </button>
 
       {open && (
-        <div className="absolute top-full mt-2 left-0 w-96 bg-white rounded-lg shadow-xl border border-slate-200 z-50">
-          <div className="p-3 border-b border-slate-200">
-            <input
-              ref={inputRef}
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search flows, artifacts, tasks..."
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+        <div className="absolute top-full mt-1.5 left-0 right-0 sm:right-auto sm:w-[400px] bg-surface-1 rounded-lg border border-edge shadow-xl shadow-black/40 z-50 animate-slide-down overflow-hidden">
+          <div className="p-2 border-b border-edge">
+            <div className="flex items-center gap-2 px-2">
+              <Search className="w-3.5 h-3.5 text-text-muted shrink-0" />
+              <input
+                ref={inputRef}
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search flows, artifacts, tasks..."
+                className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none py-1.5"
+              />
+              {isLoading && <Spinner className="h-3 w-3" />}
+            </div>
           </div>
-          <div className="max-h-80 overflow-y-auto">
+          <div className="max-h-72 overflow-y-auto">
             {query.length < 2 ? (
-              <p className="p-4 text-sm text-slate-400 text-center">Type at least 2 characters to search</p>
-            ) : isLoading ? (
-              <div className="p-4 flex justify-center">
-                <Spinner />
-              </div>
-            ) : results.length === 0 ? (
-              <p className="p-4 text-sm text-slate-400 text-center">No results found</p>
+              <p className="px-4 py-6 text-xs text-text-muted text-center">Type to search across all entities</p>
+            ) : results.length === 0 && !isLoading ? (
+              <p className="px-4 py-6 text-xs text-text-muted text-center">No results found</p>
             ) : (
               Object.entries(grouped).map(([type, items]) => (
                 <div key={type}>
-                  <p className="px-4 py-2 text-xs font-semibold text-slate-400 uppercase bg-slate-50">{type}</p>
+                  <p className="px-3 py-1.5 text-[10px] font-medium text-text-muted uppercase tracking-wider bg-surface-2">
+                    {TYPE_LABELS[type] || type}
+                  </p>
                   {(items as any[]).map((item: any) => (
                     <button
                       key={item.id || item.entity_id}
                       onClick={() => handleSelect(item)}
-                      className="w-full text-left px-4 py-2 text-sm hover:bg-blue-50 transition-colors flex items-center justify-between"
+                      className="w-full text-left px-3 py-2.5 hover:bg-surface-2 transition-colors flex items-center justify-between group"
                     >
-                      <span className="font-medium text-slate-900 truncate">{item.title || item.name || item.entity_id}</span>
+                      <div className="min-w-0">
+                        <p className="text-text-primary text-xs truncate">{item.title || item.name || item.entity_id}</p>
+                        {item.flow_title && <p className="text-[10px] text-text-muted truncate">in {item.flow_title}</p>}
+                        {item.status && <span className="text-[10px] text-text-muted">{item.status}</span>}
+                      </div>
+                      <ArrowRight className="w-3 h-3 text-text-muted opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-2" />
                     </button>
                   ))}
                 </div>

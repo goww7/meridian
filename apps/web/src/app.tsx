@@ -12,6 +12,10 @@ import { PoliciesPage } from './pages/policies';
 import { SettingsPage } from './pages/settings';
 import { AuditPage } from './pages/audit';
 import { AnalyticsPage } from './pages/analytics';
+import { IntegrationsPage } from './pages/integrations';
+import { ApprovalsPage } from './pages/approvals';
+import { CompliancePage } from './pages/compliance';
+import { NotFoundPage } from './pages/not-found';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -40,11 +44,20 @@ export function App() {
               <Route path="policies" element={<PoliciesPage />} />
               <Route path="audit" element={<AuditPage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
+              <Route path="integrations" element={<IntegrationsPage />} />
+              <Route path="approvals" element={<ApprovalsPage />} />
+              <Route path="compliance" element={<CompliancePage />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="*" element={<NotFoundPage />} />
             </Route>
           </Routes>
         </BrowserRouter>
-        <Toaster position="bottom-right" />
+        <Toaster
+          position="bottom-right"
+          toastOptions={{
+            style: { background: '#1c1c20', border: '1px solid #363640', color: '#f4f4f5', fontSize: '13px' },
+          }}
+        />
       </AuthProvider>
     </QueryClientProvider>
   );
